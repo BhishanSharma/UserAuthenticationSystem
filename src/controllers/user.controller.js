@@ -29,14 +29,29 @@ const registerUser = asyncHandler(async (req, res) => {
     email: email,
   });
 
+  const avatarLocalPath = req.files?.avatar[0]?.path;
   if (existUser) {
-    throw new ApiError(400, "email already in use !");
+    if (avatarLocalPath && fs.existsSync(avatarLocalPath)) {
+      fs.unlinkSync(avatarLocalPath);
+    }
+    throw new ApiError(409, "User with this email or password already exists");
+  }
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar file is required");
+  }
+
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+  if (!avatar) {
+    throw new ApiError(400, "Avatar upload to clloudinary failure.");
   }
 
   const user = await User.create({
     name,
     email,
     password,
+    photo: avatar
   });
 
   const createdUser = await User.findById(user._id).select(
@@ -50,7 +65,7 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "user created successfully !"));
 });
 
-const registerOAuthUser = async (req, res, next) => {
+const loginOrRegisterOAuthUser = async (req, res, next) => {
   try {
     const profile = req.user;
 
@@ -205,7 +220,7 @@ export {
   registerUser,
   loginUser,
   logoutUser,
-  registerOAuthUser,
+  loginOrRegisterOAuthUser,
   refreshAccessToken,
   generateAccessAndRefreshToken,
 };
